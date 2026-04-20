@@ -48,6 +48,8 @@ body {
 	justify-content: center;
 	gap: 36px;
 	background: radial-gradient(ellipse 60% 50% at 50% 0%, rgba(255, 61, 90, 0.08) 0%, transparent 100%), var(--bg);
+	position: relative;
+	overflow: hidden;
 }
 .home-title {
 	font-size: clamp(3rem, 8vw, 5.5rem);
@@ -81,6 +83,66 @@ body {
 	gap: 16px;
 	flex-wrap: wrap;
 	justify-content: center;
+}
+
+/* ── WAVE BARS ── */
+.home-waves {
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	height: 100px;
+	display: flex;
+	align-items: flex-end;
+	justify-content: center;
+	gap: 3px;
+	padding: 0 16px;
+	pointer-events: none;
+}
+
+.wave-bar {
+	flex: 1;
+	max-width: 7px;
+	background: linear-gradient(180deg, var(--blue) 0%, var(--red) 100%);
+	border-radius: 2px 2px 0 0;
+	opacity: 0.45;
+	height: 6px;
+	animation: eq 2s ease-in-out infinite;
+}
+
+.wave-bar:nth-child(2n) {
+	animation-delay: -0.4s;
+	opacity: 0.35;
+}
+.wave-bar:nth-child(3n) {
+	animation-delay: -0.8s;
+	opacity: 0.5;
+}
+.wave-bar:nth-child(5n) {
+	animation-delay: -1.2s;
+	opacity: 0.28;
+}
+.wave-bar:nth-child(7n) {
+	animation-delay: -1.6s;
+	opacity: 0.42;
+}
+.wave-bar:nth-child(11n) {
+	animation-delay: -0.2s;
+	opacity: 0.55;
+}
+.wave-bar:nth-child(13n) {
+	animation-delay: -1s;
+	opacity: 0.38;
+}
+
+@keyframes eq {
+	0%,
+	100% {
+		height: 4px;
+	}
+	50% {
+		height: 56px;
+	}
 }
 
 /* ── BUTTONS ── */
