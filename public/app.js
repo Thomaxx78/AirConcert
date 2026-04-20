@@ -76,6 +76,10 @@ let peerVolumes = {};
 let camDetectionActive = false;
 let lastSentVolume = -1;
 let lastSentTime = 0;
+let localStream = null;
+let peerConnections = {};
+
+const RTC_CONFIG = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
 // ============================================================
 //  WEBSOCKET
@@ -147,6 +151,9 @@ function handleMsg(msg) {
 			break;
 		case "host_changed":
 			onHostChanged(msg);
+			break;
+		case "rtc_signal":
+			handleRtcSignal(msg);
 			break;
 		case "error":
 			showToast(msg.msg || "Erreur");
@@ -384,6 +391,7 @@ async function startConcertUI(startAt) {
 		card.className = "band-card";
 		card.setAttribute("data-band-id", p.id);
 		card.innerHTML = `
+      <video class="bc-cam" autoplay muted playsinline></video>
       <div class="bc-icon">${ICONS[p.instrument] || "🎵"}</div>
       <div class="bc-name">${p.name}${p.id === myId ? " ★" : ""}</div>
       <div class="bc-instr">${p.instrument || ""}</div>
@@ -790,9 +798,13 @@ async function startCamera() {
 			video: { width: 320, height: 240, facingMode: "user" },
 			audio: false,
 		});
+		localStream = stream;
 		video.srcObject = stream;
 		await video.play();
 		wrap.querySelector(".cam-placeholder")?.remove();
+		const myBandCam = document.querySelector(`[data-band-id="${myId}"] .bc-cam`);
+		if (myBandCam) { myBandCam.srcObject = stream; myBandCam.classList.add("active"); }
+		initWebRTC();
 	} catch (e) {
 		wrap.innerHTML +=
 			'<div class="cam-placeholder">📷 Caméra non disponible<br><small>Votre instrument jouera automatiquement</small></div>';
@@ -888,10 +900,81 @@ async function startCamera() {
 }
 
 // ============================================================
+//  WEBRTC
+// ============================================================
+function sendRtcSignal(to, signal) {
+	send({ type: "rtc_signal", to, signal });
+}
+
+function createPeerConnection(peerId) {
+	const pc = new RTCPeerConnection(RTC_CONFIG);
+	peerConnections[peerId] = pc;
+
+	if (localStream) localStream.getTracks().forEach((t) => pc.addTrack(t, localStream));
+
+	pc.ontrack = (e) => {
+		const vid = document.querySelector(`[data-band-id="${peerId}"] .bc-cam`);
+		if (vid) { vid.srcObject = e.streams[0]; vid.classList.add("active"); }
+	};
+
+	pc.onicecandidate = (e) => {
+		if (e.candidate) sendRtcSignal(peerId, { type: "ice-candidate", candidate: e.candidate });
+	};
+
+	pc.onconnectionstatechange = () => {
+		if (pc.connectionState === "failed" || pc.connectionState === "closed") {
+			pc.close();
+			delete peerConnections[peerId];
+		}
+	};
+
+	return pc;
+}
+
+async function initiateRTC(peerId) {
+	const pc = createPeerConnection(peerId);
+	const offer = await pc.createOffer();
+	await pc.setLocalDescription(offer);
+	sendRtcSignal(peerId, { type: "offer", sdp: pc.localDescription });
+}
+
+async function handleRtcSignal(msg) {
+	const { from, signal } = msg;
+	try {
+		if (signal.type === "offer") {
+			const pc = createPeerConnection(from);
+			await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+			const answer = await pc.createAnswer();
+			await pc.setLocalDescription(answer);
+			sendRtcSignal(from, { type: "answer", sdp: pc.localDescription });
+		} else if (signal.type === "answer") {
+			const pc = peerConnections[from];
+			if (pc) await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+		} else if (signal.type === "ice-candidate") {
+			const pc = peerConnections[from];
+			if (pc) await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+		}
+	} catch (e) {}
+}
+
+function initWebRTC() {
+	session.players.forEach((p) => {
+		if (p.id !== myId && myId > p.id) initiateRTC(p.id);
+	});
+}
+
+function cleanupWebRTC() {
+	Object.values(peerConnections).forEach((pc) => { try { pc.close(); } catch (e) {} });
+	peerConnections = {};
+}
+
+// ============================================================
 //  STOP CONCERT
 // ============================================================
 function stopConcert() {
 	camDetectionActive = false;
+	cleanupWebRTC();
+	localStream = null;
 
 	if (concertTimerInterval) {
 		clearInterval(concertTimerInterval);

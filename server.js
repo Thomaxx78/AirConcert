@@ -129,6 +129,16 @@ wss.on("connection", (ws) => {
 			ws.send(JSON.stringify({ type: "pong", serverTime: Date.now(), clientT: msg.t }));
 			return;
 		}
+
+		if (msg.type === "rtc_signal") {
+			for (const [client, m] of clientMeta) {
+				if (m.sessionCode === meta.sessionCode && m.playerId === msg.to && client.readyState === WebSocket.OPEN) {
+					client.send(JSON.stringify({ type: "rtc_signal", from: meta.playerId, signal: msg.signal }));
+					break;
+				}
+			}
+			return;
+		}
 	});
 
 	ws.on("close", () => {

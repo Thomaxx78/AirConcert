@@ -559,9 +559,21 @@ body {
 	align-items: center;
 	gap: 5px;
 	flex: 1;
-	min-width: 80px;
-	max-width: 130px;
+	min-width: 100px;
+	max-width: 160px;
 	transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.band-card .bc-cam {
+	display: none;
+	width: 100%;
+	aspect-ratio: 4/3;
+	object-fit: cover;
+	border-radius: 6px;
+	background: var(--surface2);
+	transform: scaleX(-1);
+}
+.band-card .bc-cam.active {
+	display: block;
 }
 .band-card.playing {
 	border-color: var(--green);
