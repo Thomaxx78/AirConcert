@@ -70,7 +70,11 @@ wss.on("connection", (ws) => {
 				ws.send(JSON.stringify({ type: "error", msg: "Session introuvable" }));
 				return;
 			}
-			const player = { id: msg.id, name: msg.name, instrument: null, isHost: false };
+			const existing = session.players.get(msg.id);
+			const isHost = session.hostId === msg.id;
+			const player = existing
+				? { ...existing, name: msg.name }
+				: { id: msg.id, name: msg.name, instrument: null, isHost };
 			session.players.set(msg.id, player);
 			clientMeta.set(ws, { sessionCode: msg.code.toUpperCase(), playerId: msg.id });
 			ws.send(
@@ -93,21 +97,18 @@ wss.on("connection", (ws) => {
 			if (session.hostId !== meta.playerId) return;
 			session.songId = msg.songId;
 			broadcast(meta.sessionCode, { type: "song_selected", songId: msg.songId });
-			ws.send(JSON.stringify({ type: "song_selected", songId: msg.songId }));
 			return;
 		}
 
 		if (msg.type === "select_instrument") {
 			const p = session.players.get(meta.playerId);
 			if (!p) return;
-			// Free previously assigned instrument on this player
 			p.instrument = msg.instrument || null;
 			broadcast(meta.sessionCode, {
 				type: "instrument_assigned",
 				playerId: meta.playerId,
 				instrument: p.instrument,
 			});
-			ws.send(JSON.stringify({ type: "instrument_assigned", playerId: meta.playerId, instrument: p.instrument }));
 			return;
 		}
 
@@ -115,7 +116,6 @@ wss.on("connection", (ws) => {
 			if (session.hostId !== meta.playerId) return;
 			const startAt = Date.now() + 3500;
 			broadcast(meta.sessionCode, { type: "concert_start", startAt, songId: session.songId });
-			ws.send(JSON.stringify({ type: "concert_start", startAt, songId: session.songId }));
 			return;
 		}
 
@@ -137,8 +137,17 @@ wss.on("connection", (ws) => {
 			const session = sessions.get(meta.sessionCode);
 			if (session) {
 				session.players.delete(meta.playerId);
-				broadcast(meta.sessionCode, { type: "player_left", playerId: meta.playerId });
-				if (session.players.size === 0) sessions.delete(meta.sessionCode);
+				if (session.players.size === 0) {
+					sessions.delete(meta.sessionCode);
+				} else {
+					if (session.hostId === meta.playerId) {
+						const newHost = session.players.values().next().value;
+						newHost.isHost = true;
+						session.hostId = newHost.id;
+						broadcast(meta.sessionCode, { type: "host_changed", playerId: newHost.id });
+					}
+					broadcast(meta.sessionCode, { type: "player_left", playerId: meta.playerId });
+				}
 			}
 			clientMeta.delete(ws);
 		}

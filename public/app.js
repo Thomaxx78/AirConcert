@@ -74,6 +74,9 @@ function connectWS() {
 
 	ws.onopen = () => {
 		setWsDot(true);
+		if (session.code && myName) {
+			send({ type: "join", code: session.code, id: myId, name: myName });
+		}
 	};
 
 	ws.onmessage = (e) => {
@@ -130,6 +133,9 @@ function handleMsg(msg) {
 		case "play_state":
 			onPlayState(msg);
 			break;
+		case "host_changed":
+			onHostChanged(msg);
+			break;
 		case "error":
 			showToast(msg.msg || "Erreur");
 			break;
@@ -141,6 +147,8 @@ function onSession(msg) {
 	session.code = msg.code;
 	session.songId = msg.songId;
 	session.players = msg.players;
+	const me = session.players.find((p) => p.id === myId);
+	if (me) isHost = me.isHost;
 	showScreen("lobbyScreen");
 	document.getElementById("lobbyCode").textContent = msg.code;
 	renderSongs();
@@ -161,6 +169,16 @@ function onPlayerLeft(msg) {
 	updateStartBtn();
 	const card = document.querySelector(`[data-band-id="${msg.playerId}"]`);
 	if (card) card.classList.add("offline");
+}
+
+function onHostChanged(msg) {
+	session.players.forEach((p) => (p.isHost = p.id === msg.playerId));
+	if (msg.playerId === myId) {
+		isHost = true;
+		showToast("Tu es maintenant le chef !");
+	}
+	renderPlayers();
+	updateStartBtn();
 }
 
 function onSongSelected(msg) {
@@ -679,9 +697,11 @@ async function startCamera() {
 	let prevFrame = null;
 	let motionLevel = 0;
 	let isPlaying = false;
+	let lastMotionTime = 0;
 
 	const ON_THRESH = 0.045;
 	const OFF_THRESH = 0.016;
+	const STOP_DELAY = 5000;
 	const ANIM_BARS_INTERVAL = 150;
 
 	let lastBandAnim = 0;
@@ -714,8 +734,11 @@ async function startCamera() {
 			const raw = total > 0 ? moved / total : 0;
 			motionLevel = motionLevel * 0.76 + raw * 0.24;
 
+			const now = Date.now();
+
+			if (motionLevel > OFF_THRESH) lastMotionTime = now;
 			if (!isPlaying && motionLevel > ON_THRESH) isPlaying = true;
-			if (isPlaying && motionLevel < OFF_THRESH) isPlaying = false;
+			if (isPlaying && now - lastMotionTime > STOP_DELAY) isPlaying = false;
 
 			const vol = isPlaying ? Math.min(motionLevel * 14, 1.0) : 0;
 
@@ -726,8 +749,6 @@ async function startCamera() {
 			const badge = document.getElementById("myStatusBadge");
 			badge.textContent = isPlaying ? "🎵 En train de jouer" : "🔇 En pause";
 			badge.className = "my-status " + (isPlaying ? "playing" : "muted");
-
-			const now = Date.now();
 			if (now - lastBandAnim > ANIM_BARS_INTERVAL) {
 				lastBandAnim = now;
 				const myCard = document.querySelector(`[data-band-id="${myId}"]`);
