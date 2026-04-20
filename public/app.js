@@ -399,7 +399,7 @@ async function startConcertUI(startAt) {
 		row.appendChild(card);
 	});
 
-	initAudio(song);
+	await initAudio(song);
 	if (audioCtx.state === "suspended") await audioCtx.resume();
 
 	const overlay = document.getElementById("countdownOverlay");
@@ -448,7 +448,7 @@ async function startAudioAndDetection(song) {
 // ============================================================
 //  AUDIO ENGINE
 // ============================================================
-function initAudio(song) {
+async function initAudio(song) {
 	if (audioCtx) {
 		try {
 			audioCtx.close();
@@ -457,18 +457,38 @@ function initAudio(song) {
 	audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 	instrumentNodes = {};
 
-	session.players.forEach((player) => {
-		const nodes = buildInstrument(player.instrument, song.bpm);
-		instrumentNodes[player.id] = nodes;
-	});
+	await Promise.all(
+		session.players.map(async (player) => {
+			const nodes = await buildInstrument(player.instrument, song.bpm);
+			instrumentNodes[player.id] = nodes;
+		}),
+	);
 }
 
-function buildInstrument(instr, bpm) {
+async function buildInstrument(instr, bpm) {
 	const masterGain = audioCtx.createGain();
 	masterGain.gain.value = 0;
 	masterGain.connect(audioCtx.destination);
-	const beat = 60 / bpm;
 	const nodes = { masterGain, intervals: [] };
+
+	try {
+		const res = await fetch(`/samples/${instr}.wav`);
+		if (res.ok) {
+			const buffer = await audioCtx.decodeAudioData(await res.arrayBuffer());
+			let source = null;
+			nodes.play = () => {
+				source = audioCtx.createBufferSource();
+				source.buffer = buffer;
+				source.loop = true;
+				source.connect(masterGain);
+				source.start();
+			};
+			nodes.stop = () => { try { source?.stop(); } catch (e) {} };
+			return nodes;
+		}
+	} catch (e) {}
+
+	const beat = 60 / bpm;
 
 	switch (instr) {
 		case "batterie": {

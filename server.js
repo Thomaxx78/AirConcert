@@ -3,12 +3,26 @@ const fs = require("fs");
 const path = require("path");
 const WebSocket = require("ws");
 
-const MIME = { ".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "application/javascript" };
+const MIME = {
+	".html": "text/html; charset=utf-8",
+	".css": "text/css",
+	".js": "application/javascript",
+	".wav": "audio/wav",
+	".mp3": "audio/mpeg",
+};
+
+const PUBLIC = path.join(__dirname, "public");
 
 const server = http.createServer((req, res) => {
-	const ext = path.extname(req.url);
-	if (ext === ".css" || ext === ".js") {
-		const file = path.join(__dirname, "public", path.basename(req.url));
+	const ext = path.extname(req.url.split("?")[0]);
+	if (MIME[ext] && ext !== ".html") {
+		const safePath = path.normalize(decodeURIComponent(req.url.split("?")[0]));
+		const file = path.join(PUBLIC, safePath);
+		if (!file.startsWith(PUBLIC + path.sep) && file !== PUBLIC) {
+			res.writeHead(403);
+			res.end();
+			return;
+		}
 		fs.access(file, fs.constants.F_OK, (err) => {
 			if (err) {
 				res.writeHead(404);
