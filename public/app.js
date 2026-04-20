@@ -164,11 +164,11 @@ function onPlayerJoined(msg) {
 }
 
 function onPlayerLeft(msg) {
+	const leaving = session.players.find((p) => p.id === msg.playerId);
+	if (leaving) showToast(`${leaving.name} a quitté la session`);
 	session.players = session.players.filter((p) => p.id !== msg.playerId);
 	renderPlayers();
 	updateStartBtn();
-	const card = document.querySelector(`[data-band-id="${msg.playerId}"]`);
-	if (card) card.classList.add("offline");
 }
 
 function onHostChanged(msg) {
