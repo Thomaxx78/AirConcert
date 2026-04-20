@@ -34,6 +34,14 @@ const SONGS = [
 		duration: 120,
 		stems: ["synthé", "basse", "batterie", "pad"],
 	},
+	{
+		id: "techno1",
+		name: "Mental Abyss",
+		artist: "AirConcert",
+		bpm: 145,
+		duration: 120,
+		stems: ["kick", "acid", "arp", "hats"],
+	},
 ];
 const ICONS = {
 	guitare: "🎸",
@@ -44,6 +52,10 @@ const ICONS = {
 	saxophone: "🎷",
 	synthé: "🎛️",
 	pad: "🎚️",
+	kick: "💥",
+	acid: "🧪",
+	arp: "🌀",
+	hats: "🔩",
 };
 
 // ============================================================
@@ -647,6 +659,107 @@ function buildInstrument(instr, bpm) {
 						o.stop();
 					} catch (e) {}
 				});
+			break;
+		}
+		case "kick": {
+			nodes.play = () => {
+				const iv = setInterval(() => {
+					const o = audioCtx.createOscillator(),
+						g = audioCtx.createGain();
+					o.type = "sine";
+					o.frequency.setValueAtTime(130, audioCtx.currentTime);
+					o.frequency.exponentialRampToValueAtTime(18, audioCtx.currentTime + 0.18);
+					g.gain.setValueAtTime(1.3, audioCtx.currentTime);
+					g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.22);
+					o.connect(g).connect(masterGain);
+					o.start();
+					o.stop(audioCtx.currentTime + 0.23);
+				}, beat * 1000);
+				nodes.intervals.push(iv);
+			};
+			break;
+		}
+		case "acid": {
+			// 303-style: sawtooth through resonant lowpass, step sequencer
+			const steps = [55, 55, 73.42, 82.41, 55, 49, 55, 65.41];
+			let step = 0;
+			nodes.play = () => {
+				const o = audioCtx.createOscillator(),
+					f = audioCtx.createBiquadFilter(),
+					g = audioCtx.createGain();
+				o.type = "sawtooth";
+				o.frequency.value = steps[0];
+				f.type = "lowpass";
+				f.frequency.value = 300;
+				f.Q.value = 18;
+				g.gain.value = 0.45;
+				o.connect(f).connect(g).connect(masterGain);
+				o.start();
+				nodes._ao = o;
+				const iv = setInterval(() => {
+					const t = audioCtx.currentTime;
+					o.frequency.setValueAtTime(steps[step % steps.length], t);
+					f.frequency.cancelScheduledValues(t);
+					f.frequency.setValueAtTime(2600, t);
+					f.frequency.exponentialRampToValueAtTime(160, t + beat * 0.46);
+					step++;
+				}, beat * 500);
+				nodes.intervals.push(iv);
+			};
+			nodes.stop = () => {
+				try {
+					nodes._ao?.stop();
+				} catch (e) {}
+			};
+			break;
+		}
+		case "arp": {
+			// 16th-note hypnotic arp in A minor pentatonic
+			const notes = [
+				220, 261.63, 293.66, 329.63, 392, 440, 392, 329.63, 293.66, 261.63, 220, 261.63, 329.63, 392, 440, 392,
+			];
+			let ni = 0;
+			nodes.play = () => {
+				const iv = setInterval(() => {
+					const o = audioCtx.createOscillator(),
+						g = audioCtx.createGain();
+					o.type = "square";
+					o.frequency.value = notes[ni++ % notes.length];
+					g.gain.setValueAtTime(0.1, audioCtx.currentTime);
+					g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + beat * 0.2);
+					o.connect(g).connect(masterGain);
+					o.start();
+					o.stop(audioCtx.currentTime + beat * 0.22);
+				}, beat * 250);
+				nodes.intervals.push(iv);
+			};
+			break;
+		}
+		case "hats": {
+			// 16th-note hi-hats, accented on 8th notes
+			let tick = 0;
+			nodes.play = () => {
+				const iv = setInterval(() => {
+					const accent = tick % 2 === 0;
+					tick++;
+					const len = accent ? 0.035 : 0.018;
+					const vol = accent ? 0.38 : 0.16;
+					const buf = audioCtx.createBuffer(1, Math.ceil(audioCtx.sampleRate * len), audioCtx.sampleRate);
+					const d = buf.getChannelData(0);
+					for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+					const bs = audioCtx.createBufferSource(),
+						f = audioCtx.createBiquadFilter(),
+						g = audioCtx.createGain();
+					bs.buffer = buf;
+					f.type = "highpass";
+					f.frequency.value = 7500;
+					g.gain.setValueAtTime(vol, audioCtx.currentTime);
+					g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + len);
+					bs.connect(f).connect(g).connect(masterGain);
+					bs.start();
+				}, beat * 250);
+				nodes.intervals.push(iv);
+			};
 			break;
 		}
 	}
