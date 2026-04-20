@@ -1,6 +1,14 @@
 {
-  "name": "airconcert",
-  "version": "1.0.0",
-  "scripts": { "start": "node server.js" },
-  "dependencies": { "ws": "^8.18.0" }
+	"name": "airconcert",
+	"version": "1.0.0",
+	"scripts": {
+		"start": "node server.js",
+		"format": "prettier --write ."
+	},
+	"dependencies": {
+		"ws": "^8.18.0"
+	},
+	"devDependencies": {
+		"prettier": "^3.8.3"
+	}
 }
