@@ -532,8 +532,13 @@ body {
 /* Band section */
 .band-section {
 	flex: 1;
-	overflow-y: auto;
+	display: flex;
+	flex-direction: column;
 	min-height: 0;
+	overflow-y: auto;
+}
+.band-section .band-row {
+	flex: 1;
 }
 .band-label {
 	font-family: "Space Mono", monospace;
@@ -544,23 +549,23 @@ body {
 	margin-bottom: 8px;
 }
 .band-row {
-	display: flex;
-	gap: 8px;
-	flex-wrap: wrap;
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+	grid-auto-rows: 1fr;
+	gap: 12px;
+	align-content: stretch;
 }
 
 .band-card {
 	background: var(--surface);
 	border: 2px solid var(--border);
-	border-radius: 10px;
-	padding: 10px 14px;
+	border-radius: 14px;
+	padding: 18px 14px 14px;
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	gap: 5px;
-	flex: 1;
-	min-width: 100px;
-	max-width: 160px;
+	justify-content: space-between;
+	gap: 8px;
 	transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .band-card .bc-cam {
@@ -568,7 +573,7 @@ body {
 	width: 100%;
 	aspect-ratio: 4/3;
 	object-fit: cover;
-	border-radius: 6px;
+	border-radius: 8px;
 	background: var(--surface2);
 	transform: scaleX(-1);
 }
@@ -577,35 +582,37 @@ body {
 }
 .band-card.playing {
 	border-color: var(--green);
-	box-shadow: 0 0 16px var(--glow-green);
+	box-shadow: 0 0 20px var(--glow-green);
 }
 .band-card.offline {
 	opacity: 0.4;
 }
 .band-card .bc-icon {
-	font-size: 1.5rem;
+	font-size: 2.4rem;
+	line-height: 1;
 }
 .band-card .bc-name {
-	font-size: 0.75rem;
+	font-size: 1rem;
 	font-weight: 700;
 	text-align: center;
 }
 .band-card .bc-instr {
 	font-family: "Space Mono", monospace;
-	font-size: 0.6rem;
+	font-size: 0.65rem;
 	color: var(--dim);
 	text-transform: uppercase;
+	letter-spacing: 1px;
 }
 .vol-bars {
 	display: flex;
-	gap: 2px;
+	gap: 3px;
 	align-items: flex-end;
-	height: 18px;
+	height: 24px;
 }
 .vol-bar {
-	width: 3px;
+	width: 4px;
 	background: var(--green);
-	border-radius: 1px;
+	border-radius: 2px;
 	transition: height 0.1s;
 }
 .band-card:not(.playing) .vol-bar {

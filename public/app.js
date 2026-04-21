@@ -379,7 +379,11 @@ function renderSongs() {
 	SONGS.forEach((song) => {
 		const card = document.createElement("div");
 		card.className = "song-card" + (session.songId === song.id ? " selected" : "");
-		card.innerHTML = `<div class="sname">${song.name}</div><div class="sinfo">${song.artist} — ${song.bpm} BPM</div><div class="stems">${song.stems.map((s) => `<span class="stem-tag">${s}</span>`).join("")}</div>`;
+		const keywords = SONG_KEYWORDS[song.id] ?? [];
+		const voiceHint = hostMode && keywords.length
+			? `<div style="font-size:.65rem;color:#a78bfa;margin-top:4px;font-style:italic">🎤 « ${keywords.join(" » ou « ") } »</div>`
+			: "";
+		card.innerHTML = `<div class="sname">${song.name}</div><div class="sinfo">${song.artist} — ${song.bpm} BPM</div><div class="stems">${song.stems.map((s) => `<span class="stem-tag">${s}</span>`).join("")}</div>${voiceHint}`;
 		if (hostMode)
 			card.onclick = () => {
 				send({ type: "select_song", songId: song.id });
@@ -408,7 +412,11 @@ function renderPlayers() {
 					return `<option value="${stem}" ${p.instrument === stem ? "selected" : ""} ${isTaken ? "disabled" : ""}>${ICONS[stem] || "🎵"} ${stem}${isTaken ? " ✗" : ""}</option>`;
 				})
 				.join("");
-			instrHTML = `<div style="display:flex;gap:6px;align-items:center"><select onchange="chooseInstrument(this.value)"><option value="">— Choisir —</option>${opts}</select><button id="voiceInstrBtn" onclick="startVoiceInstrumentSelection()" title="Dire l'instrument" style="background:var(--purple,#8b5cf6);border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:1rem;line-height:1;color:#fff">🎤</button></div>`;
+			const available = song.stems.filter((s) => !taken.includes(s) || p.instrument === s);
+			const voiceHint = available.length
+				? `<div style="font-size:.65rem;color:#a78bfa;margin-top:3px;font-style:italic">🎤 Dites : « ${available.join(" », « ") } »</div>`
+				: "";
+			instrHTML = `<div><div style="display:flex;gap:6px;align-items:center"><select onchange="chooseInstrument(this.value)"><option value="">— Choisir —</option>${opts}</select><button id="voiceInstrBtn" onclick="startVoiceInstrumentSelection()" title="Dire l'instrument" style="background:var(--purple,#8b5cf6);border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:1rem;line-height:1;color:#fff">🎤</button></div>${voiceHint}</div>`;
 		} else if (p.instrument) {
 			instrHTML = `<div style="font-size:.85rem;color:var(--yellow);font-family:'Space Mono',monospace;">${ICONS[p.instrument] || "🎵"} ${p.instrument}</div>`;
 		} else {
