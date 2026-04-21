@@ -584,14 +584,20 @@ function showGoOverlay(song) {
 	overlay.classList.remove("hidden");
 
 	if (isHost) {
-		overlay.innerHTML = `<div style="font-size:1.1rem;line-height:1.7;text-align:center">
+		overlay.innerHTML = `<div style="font-size:1.1rem;line-height:1.7;text-align:center;cursor:pointer">
 			<div style="font-size:2.2rem;margin-bottom:6px">🎤</div>
-			Dites <strong style="color:var(--green)">"GO"</strong> pour lancer<br>
+			Dites <strong style="color:var(--green)">"GO"</strong> ou appuyez ici<br>
 			<span style="font-size:.7rem;opacity:.5">Seul le chef peut démarrer</span>
 		</div>`;
-		listenForGo(() => {
+		const doGo = () => {
 			send({ type: "music_start" });
 			launchMusic(song);
+		};
+		overlay.style.cursor = "pointer";
+		overlay.addEventListener("click", doGo, { once: true });
+		listenForGo(() => {
+			overlay.removeEventListener("click", doGo);
+			doGo();
 		});
 	} else {
 		overlay.innerHTML = `<div style="font-size:1.1rem;line-height:1.7;text-align:center">
