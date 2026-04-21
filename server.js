@@ -133,6 +133,12 @@ wss.on("connection", (ws) => {
 			return;
 		}
 
+		if (msg.type === "music_start") {
+			if (session.hostId !== meta.playerId) return;
+			broadcast(meta.sessionCode, { type: "music_start" });
+			return;
+		}
+
 		if (msg.type === "play_state") {
 			// Relay to everyone else in session (not sender)
 			broadcast(meta.sessionCode, { type: "play_state", playerId: meta.playerId, volume: msg.volume }, ws);

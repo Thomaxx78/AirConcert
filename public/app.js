@@ -74,6 +74,7 @@ let audioCtx = null;
 let instrumentNodes = {};
 let peerVolumes = {};
 let camDetectionActive = false;
+let pendingSong = null;
 let lastSentVolume = -1;
 let lastSentTime = 0;
 let localStream = null;
@@ -149,6 +150,9 @@ function handleMsg(msg) {
 		case "play_state":
 			onPlayState(msg);
 			break;
+		case "music_start":
+			onMusicStart();
+			break;
 		case "host_changed":
 			onHostChanged(msg);
 			break;
@@ -173,7 +177,7 @@ function onSession(msg) {
 	renderSongs();
 	renderPlayers();
 	updateStartBtn();
-	if (isHost && !session.songId) startVoiceSongSelection();
+	// voice button in header — not auto-started
 }
 
 function onPlayerJoined(msg) {
@@ -332,9 +336,8 @@ function startVoiceSongSelection() {
 	const rec = createRecognition();
 	if (!rec) return;
 
-	const indicator = document.getElementById("voiceSongIndicator");
 	voiceSongRecognition = rec;
-	if (indicator) indicator.style.display = "";
+	setHeaderVoiceActive(true);
 
 	rec.onresult = (event) => {
 		for (const transcript of getTranscripts(event)) {
@@ -367,8 +370,7 @@ function stopVoiceSongSelection() {
 	const rec = voiceSongRecognition;
 	voiceSongRecognition = null;
 	try { rec.abort(); } catch (_) {}
-	const indicator = document.getElementById("voiceSongIndicator");
-	if (indicator) indicator.style.display = "none";
+	setHeaderVoiceActive(false);
 }
 
 function renderSongs() {
@@ -412,11 +414,7 @@ function renderPlayers() {
 					return `<option value="${stem}" ${p.instrument === stem ? "selected" : ""} ${isTaken ? "disabled" : ""}>${ICONS[stem] || "🎵"} ${stem}${isTaken ? " ✗" : ""}</option>`;
 				})
 				.join("");
-			const available = song.stems.filter((s) => !taken.includes(s) || p.instrument === s);
-			const voiceHint = available.length
-				? `<div style="font-size:.65rem;color:#a78bfa;margin-top:3px;font-style:italic">🎤 Dites : « ${available.join(" », « ") } »</div>`
-				: "";
-			instrHTML = `<div><div style="display:flex;gap:6px;align-items:center"><select onchange="chooseInstrument(this.value)"><option value="">— Choisir —</option>${opts}</select><button id="voiceInstrBtn" onclick="startVoiceInstrumentSelection()" title="Dire l'instrument" style="background:var(--purple,#8b5cf6);border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:1rem;line-height:1;color:#fff">🎤</button></div>${voiceHint}</div>`;
+			instrHTML = `<select onchange="chooseInstrument(this.value)"><option value="">— Choisir —</option>${opts}</select>`;
 		} else if (p.instrument) {
 			instrHTML = `<div style="font-size:.85rem;color:var(--yellow);font-family:'Space Mono',monospace;">${ICONS[p.instrument] || "🎵"} ${p.instrument}</div>`;
 		} else {
@@ -436,19 +434,15 @@ function startVoiceInstrumentSelection() {
 	const song = SONGS.find((s) => s.id === session.songId);
 	if (!song) return;
 
-	const btn = document.getElementById("voiceInstrBtn");
-	const originalLabel = btn.textContent;
-	btn.textContent = "🔴";
-	btn.disabled = true;
 	let active = true;
 
 	const recognition = createRecognition();
 	if (!recognition) {
 		alert("La reconnaissance vocale n'est pas supportée par ce navigateur.");
-		btn.textContent = originalLabel;
-		btn.disabled = false;
 		return;
 	}
+
+	setHeaderVoiceActive(true);
 
 	recognition.onresult = (event) => {
 		active = false;
@@ -463,32 +457,41 @@ function startVoiceInstrumentSelection() {
 		}
 		if (matched) {
 			chooseInstrument(matched);
-			btn.textContent = "✅";
+			showToast(`🎤 ${ICONS[matched] || ""} ${matched} choisi !`);
 		} else {
-			btn.textContent = "❌";
+			showToast("🎤 Instrument non reconnu");
 		}
-		setTimeout(() => {
-			btn.textContent = originalLabel;
-			btn.disabled = false;
-		}, 1500);
+		setHeaderVoiceActive(false);
 	};
 
 	recognition.onerror = (event) => {
 		active = false;
 		if (event.error === "not-allowed") alert("Accès au microphone refusé.");
 		else console.warn("[voice] error:", event.error);
-		btn.textContent = originalLabel;
-		btn.disabled = false;
+		setHeaderVoiceActive(false);
 	};
 
 	recognition.onend = () => {
-		if (active) {
-			btn.textContent = originalLabel;
-			btn.disabled = false;
-		}
+		if (active) setHeaderVoiceActive(false);
 	};
 
 	recognition.start();
+}
+
+function startHeaderVoice() {
+	if (!session.songId) {
+		startVoiceSongSelection();
+	} else {
+		startVoiceInstrumentSelection();
+	}
+}
+
+function setHeaderVoiceActive(active) {
+	const btn = document.getElementById("headerVoiceBtn");
+	if (!btn) return;
+	btn.textContent = active ? "🔴" : "🎤";
+	btn.style.background = active ? "var(--red)" : "var(--surface2)";
+	btn.style.boxShadow = active ? "0 0 10px var(--glow-red)" : "none";
 }
 
 function updateStartBtn() {
@@ -571,6 +574,80 @@ async function startConcertUI(startAt) {
 }
 
 async function startAudioAndDetection(song) {
+	pendingSong = song;
+	await startCamera();
+	showGoOverlay(song);
+}
+
+function showGoOverlay(song) {
+	const overlay = document.getElementById("countdownOverlay");
+	overlay.classList.remove("hidden");
+
+	if (isHost) {
+		overlay.innerHTML = `<div style="font-size:1.1rem;line-height:1.7;text-align:center">
+			<div style="font-size:2.2rem;margin-bottom:6px">🎤</div>
+			Dites <strong style="color:var(--green)">"GO"</strong> pour lancer<br>
+			<span style="font-size:.7rem;opacity:.5">Seul le chef peut démarrer</span>
+		</div>`;
+		listenForGo(() => {
+			send({ type: "music_start" });
+			launchMusic(song);
+		});
+	} else {
+		overlay.innerHTML = `<div style="font-size:1.1rem;line-height:1.7;text-align:center">
+			<div style="font-size:2.2rem;margin-bottom:6px">⏳</div>
+			En attente du chef…
+		</div>`;
+	}
+}
+
+function listenForGo(onGo) {
+	const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+	if (!SR) {
+		const overlay = document.getElementById("countdownOverlay");
+		overlay.style.cursor = "pointer";
+		overlay.addEventListener("click", onGo, { once: true });
+		return;
+	}
+
+	const rec = new SR();
+	rec.lang = "fr-FR";
+	rec.continuous = true;
+	rec.interimResults = false;
+
+	rec.onresult = (e) => {
+		const t = e.results[e.results.length - 1][0].transcript.toLowerCase().trim();
+		if (/\b(go|allez|partez|start|lancez|démarrez)\b/.test(t)) {
+			rec.stop();
+			onGo();
+		}
+	};
+
+	rec.onerror = () => {
+		const overlay = document.getElementById("countdownOverlay");
+		overlay.innerHTML += `<div style="font-size:.7rem;margin-top:8px;opacity:.5;cursor:pointer">ou appuyez ici</div>`;
+		overlay.style.cursor = "pointer";
+		overlay.addEventListener("click", onGo, { once: true });
+	};
+
+	rec.onend = () => {
+		if (!document.getElementById("countdownOverlay").classList.contains("hidden")) {
+			try { rec.start(); } catch (_) {}
+		}
+	};
+
+	try { rec.start(); } catch (_) {}
+}
+
+function onMusicStart() {
+	if (isHost) return; // host already called launchMusic directly
+	const overlay = document.getElementById("countdownOverlay");
+	if (overlay) overlay.classList.add("hidden");
+	if (pendingSong) launchMusic(pendingSong);
+}
+
+function launchMusic(song) {
+	document.getElementById("countdownOverlay").classList.add("hidden");
 	Object.values(instrumentNodes).forEach((nodes) => {
 		if (nodes.play) nodes.play();
 	});
@@ -583,8 +660,6 @@ async function startAudioAndDetection(song) {
 		document.getElementById("cTimer").textContent = `${m}:${s.toString().padStart(2, "0")}`;
 		document.getElementById("progressBar").style.width = Math.min((elapsed / song.duration) * 100, 100) + "%";
 	}, 250);
-
-	await startCamera();
 }
 
 // ============================================================

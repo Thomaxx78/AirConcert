@@ -71,10 +71,12 @@
 		<div id="lobbyScreen" class="screen">
 			<div class="lobby-header">
 				<h2>Lobby</h2>
-				<div style="display: flex; align-items: center; gap: 12px">
+				<div style="display: flex; align-items: center; gap: 10px">
 					<div class="ws-status">
 						<span class="ws-dot ok" id="wsDotLobby"></span><span id="wsLabelLobby">connecté</span>
 					</div>
+					<button id="headerVoiceBtn" onclick="startHeaderVoice()" title="Choisir musique ou instrument à la voix"
+						style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:7px 13px;cursor:pointer;font-size:1.1rem;line-height:1;transition:all .2s">🎤</button>
 					<div class="code-badge" id="lobbyCode">----</div>
 				</div>
 			</div>
