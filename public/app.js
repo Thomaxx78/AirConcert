@@ -272,6 +272,7 @@ function hideModal(id) {
 }
 
 function goHome() {
+	stopVoiceSongSelection();
 	stopConcert();
 	session = { code: null, players: [], songId: null };
 	showScreen("homeScreen");
@@ -312,48 +313,53 @@ const SONG_KEYWORDS = {
 
 let voiceSongRecognition = null;
 
-function startVoiceSongSelection() {
+function createRecognition() {
 	const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-	if (!SpeechRecognition || voiceSongRecognition) return;
+	if (!SpeechRecognition) return null;
+	const rec = new SpeechRecognition();
+	rec.lang = "fr-FR";
+	rec.interimResults = false;
+	rec.maxAlternatives = 5;
+	return rec;
+}
+
+function getTranscripts(event) {
+	return Array.from(event.results[0]).map((r) => r.transcript.toLowerCase().trim());
+}
+
+function startVoiceSongSelection() {
+	if (voiceSongRecognition) return;
+	const rec = createRecognition();
+	if (!rec) return;
 
 	const indicator = document.getElementById("voiceSongIndicator");
+	voiceSongRecognition = rec;
+	if (indicator) indicator.style.display = "";
 
-	navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
-		stream.getTracks().forEach((t) => t.stop());
-
-		const rec = new SpeechRecognition();
-		rec.lang = "fr-FR";
-		rec.interimResults = false;
-		rec.maxAlternatives = 5;
-		voiceSongRecognition = rec;
-		if (indicator) indicator.style.display = "";
-
-		rec.onresult = (event) => {
-			const transcripts = Array.from(event.results[0]).map((r) => r.transcript.toLowerCase().trim());
-			for (const transcript of transcripts) {
-				for (const [songId, keywords] of Object.entries(SONG_KEYWORDS)) {
-					if (keywords.some((kw) => transcript.includes(kw))) {
-						send({ type: "select_song", songId });
-						stopVoiceSongSelection();
-						return;
-					}
+	rec.onresult = (event) => {
+		for (const transcript of getTranscripts(event)) {
+			for (const [songId, keywords] of Object.entries(SONG_KEYWORDS)) {
+				if (keywords.some((kw) => transcript.includes(kw))) {
+					send({ type: "select_song", songId });
+					stopVoiceSongSelection();
+					return;
 				}
 			}
-		};
+		}
+	};
 
-		rec.onerror = (e) => {
-			if (e.error === "aborted") return;
-			console.warn("[voice-song] error:", e.error);
-		};
+	rec.onerror = (e) => {
+		if (e.error === "aborted" || e.error === "not-allowed") return;
+		console.warn("[voice-song] error:", e.error);
+	};
 
-		rec.onend = () => {
-			if (voiceSongRecognition && !session.songId) {
-				try { rec.start(); } catch (_) {}
-			}
-		};
+	rec.onend = () => {
+		if (voiceSongRecognition && !session.songId) {
+			try { rec.start(); } catch (_) {}
+		}
+	};
 
-		rec.start();
-	}).catch(() => {});
+	rec.start();
 }
 
 function stopVoiceSongSelection() {
@@ -368,7 +374,7 @@ function stopVoiceSongSelection() {
 function renderSongs() {
 	const grid = document.getElementById("songGrid");
 	grid.innerHTML = "";
-	const hostMode = isHost || session.players.find((p) => p.id === myId)?.isHost;
+	const hostMode = isHost;
 
 	SONGS.forEach((song) => {
 		const card = document.createElement("div");
@@ -419,11 +425,6 @@ function chooseInstrument(instr) {
 }
 
 function startVoiceInstrumentSelection() {
-	const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-	if (!SpeechRecognition) {
-		alert("La reconnaissance vocale n'est pas supportée par ce navigateur.");
-		return;
-	}
 	const song = SONGS.find((s) => s.id === session.songId);
 	if (!song) return;
 
@@ -431,49 +432,27 @@ function startVoiceInstrumentSelection() {
 	const originalLabel = btn.textContent;
 	btn.textContent = "🔴";
 	btn.disabled = true;
+	let active = true;
 
-	navigator.mediaDevices.getUserMedia({ audio: true })
-		.then((stream) => {
-			launchRecognition(SpeechRecognition, song, btn, originalLabel, stream);
-		})
-		.catch((err) => {
-			console.error("[voice] mic permission denied:", err);
-			alert("Accès au microphone refusé.");
-			btn.textContent = originalLabel;
-			btn.disabled = false;
-		});
-}
-
-function launchRecognition(SpeechRecognition, song, btn, originalLabel, stream) {
-	const recognition = new SpeechRecognition();
-	recognition.lang = "fr-FR";
-	recognition.interimResults = false;
-	recognition.maxAlternatives = 5;
-
-	recognition.onstart = () => console.log("[voice] recognition started");
-
-	recognition.onspeechstart = () => console.log("[voice] speech detected");
-
-	recognition.onspeechend = () => console.log("[voice] speech ended");
-
-	recognition.onaudiostart = () => console.log("[voice] audio capture started");
-
-	recognition.onaudioend = () => console.log("[voice] audio capture ended");
+	const recognition = createRecognition();
+	if (!recognition) {
+		alert("La reconnaissance vocale n'est pas supportée par ce navigateur.");
+		btn.textContent = originalLabel;
+		btn.disabled = false;
+		return;
+	}
 
 	recognition.onresult = (event) => {
-		const alternatives = Array.from(event.results[0]).map((r) => r.transcript.toLowerCase().trim());
-		console.log("[voice] transcripts:", alternatives);
-		const taken = session.players.map((p) => p.instrument).filter((i) => i && i !== session.players.find((p) => p.id === myId)?.instrument);
+		active = false;
+		const taken = session.players
+			.map((p) => p.instrument)
+			.filter((i) => i && i !== session.players.find((p) => p.id === myId)?.instrument);
 		const available = song.stems.filter((s) => !taken.includes(s));
-		console.log("[voice] available stems:", available);
-
 		let matched = null;
-		for (const transcript of alternatives) {
+		for (const transcript of getTranscripts(event)) {
 			matched = available.find((stem) => transcript.includes(stem.toLowerCase()));
 			if (matched) break;
 		}
-		console.log("[voice] matched:", matched);
-
 		if (matched) {
 			chooseInstrument(matched);
 			btn.textContent = "✅";
@@ -487,22 +466,20 @@ function launchRecognition(SpeechRecognition, song, btn, originalLabel, stream) 
 	};
 
 	recognition.onerror = (event) => {
-		console.error("[voice] error:", event.error, event.message);
-		stream.getTracks().forEach((t) => t.stop());
+		active = false;
+		if (event.error === "not-allowed") alert("Accès au microphone refusé.");
+		else console.warn("[voice] error:", event.error);
 		btn.textContent = originalLabel;
 		btn.disabled = false;
 	};
 
 	recognition.onend = () => {
-		console.log("[voice] recognition ended, btn state:", btn.textContent);
-		stream.getTracks().forEach((t) => t.stop());
-		if (btn.textContent === "🔴") {
+		if (active) {
 			btn.textContent = originalLabel;
 			btn.disabled = false;
 		}
 	};
 
-	console.log("[voice] calling recognition.start(), song:", song.id, "stems:", song.stems);
 	recognition.start();
 }
 
