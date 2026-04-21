@@ -337,7 +337,7 @@ function renderPlayers() {
 					return `<option value="${stem}" ${p.instrument === stem ? "selected" : ""} ${isTaken ? "disabled" : ""}>${ICONS[stem] || "🎵"} ${stem}${isTaken ? " ✗" : ""}</option>`;
 				})
 				.join("");
-			instrHTML = `<select onchange="chooseInstrument(this.value)"><option value="">— Choisir —</option>${opts}</select>`;
+			instrHTML = `<div style="display:flex;gap:6px;align-items:center"><select onchange="chooseInstrument(this.value)"><option value="">— Choisir —</option>${opts}</select><button id="voiceInstrBtn" onclick="startVoiceInstrumentSelection()" title="Dire l'instrument" style="background:var(--purple,#8b5cf6);border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:1rem;line-height:1;color:#fff">🎤</button></div>`;
 		} else if (p.instrument) {
 			instrHTML = `<div style="font-size:.85rem;color:var(--yellow);font-family:'Space Mono',monospace;">${ICONS[p.instrument] || "🎵"} ${p.instrument}</div>`;
 		} else {
@@ -351,6 +351,79 @@ function renderPlayers() {
 
 function chooseInstrument(instr) {
 	send({ type: "select_instrument", instrument: instr || null });
+}
+
+function startVoiceInstrumentSelection() {
+	const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+	if (!SpeechRecognition) {
+		alert("La reconnaissance vocale n'est pas supportée par ce navigateur.");
+		return;
+	}
+	const song = SONGS.find((s) => s.id === session.songId);
+	if (!song) return;
+
+	const btn = document.getElementById("voiceInstrBtn");
+	const originalLabel = btn.textContent;
+	btn.textContent = "🔴";
+	btn.disabled = true;
+
+	const recognition = new SpeechRecognition();
+	recognition.lang = "fr-FR";
+	recognition.interimResults = false;
+	recognition.maxAlternatives = 5;
+
+	recognition.onstart = () => console.log("[voice] recognition started");
+
+	recognition.onspeechstart = () => console.log("[voice] speech detected");
+
+	recognition.onspeechend = () => console.log("[voice] speech ended");
+
+	recognition.onaudiostart = () => console.log("[voice] audio capture started");
+
+	recognition.onaudioend = () => console.log("[voice] audio capture ended");
+
+	recognition.onresult = (event) => {
+		const alternatives = Array.from(event.results[0]).map((r) => r.transcript.toLowerCase().trim());
+		console.log("[voice] transcripts:", alternatives);
+		const taken = session.players.map((p) => p.instrument).filter((i) => i && i !== session.players.find((p) => p.id === myId)?.instrument);
+		const available = song.stems.filter((s) => !taken.includes(s));
+		console.log("[voice] available stems:", available);
+
+		let matched = null;
+		for (const transcript of alternatives) {
+			matched = available.find((stem) => transcript.includes(stem.toLowerCase()));
+			if (matched) break;
+		}
+		console.log("[voice] matched:", matched);
+
+		if (matched) {
+			chooseInstrument(matched);
+			btn.textContent = "✅";
+		} else {
+			btn.textContent = "❌";
+		}
+		setTimeout(() => {
+			btn.textContent = originalLabel;
+			btn.disabled = false;
+		}, 1500);
+	};
+
+	recognition.onerror = (event) => {
+		console.error("[voice] error:", event.error, event.message);
+		btn.textContent = originalLabel;
+		btn.disabled = false;
+	};
+
+	recognition.onend = () => {
+		console.log("[voice] recognition ended, btn state:", btn.textContent);
+		if (btn.textContent === "🔴") {
+			btn.textContent = originalLabel;
+			btn.disabled = false;
+		}
+	};
+
+	console.log("[voice] calling recognition.start(), song:", song.id, "stems:", song.stems);
+	recognition.start();
 }
 
 function updateStartBtn() {
