@@ -530,10 +530,14 @@ async function startConcertUI(startAt) {
 		card.setAttribute("data-band-id", p.id);
 		card.innerHTML = `
       <video class="bc-cam" autoplay muted playsinline></video>
-      <div class="bc-icon">${ICONS[p.instrument] || "🎵"}</div>
-      <div class="bc-name">${p.name}${p.id === myId ? " ★" : ""}</div>
-      <div class="bc-instr">${p.instrument || ""}</div>
-      <div class="vol-bars">${Array(5).fill('<div class="vol-bar" style="height:2px"></div>').join("")}</div>`;
+      <div class="bc-avatar">${ICONS[p.instrument] || "🎵"}</div>
+      <div class="bc-overlay">
+        <div class="bc-name">${p.name}${p.id === myId ? " ★" : ""}</div>
+        <div class="bc-meta">
+          <span class="bc-instr">${p.instrument || ""}</span>
+          <div class="vol-bars">${Array(5).fill('<div class="vol-bar" style="height:2px"></div>').join("")}</div>
+        </div>
+      </div>`;
 		row.appendChild(card);
 	});
 
@@ -961,7 +965,7 @@ async function startCamera() {
 		await video.play();
 		wrap.querySelector(".cam-placeholder")?.remove();
 		const myBandCam = document.querySelector(`[data-band-id="${myId}"] .bc-cam`);
-		if (myBandCam) { myBandCam.srcObject = stream; myBandCam.classList.add("active"); }
+		if (myBandCam) { myBandCam.srcObject = stream; myBandCam.closest(".band-card").classList.add("has-cam"); }
 		initWebRTC();
 	} catch (e) {
 		wrap.innerHTML +=
@@ -1072,7 +1076,7 @@ function createPeerConnection(peerId) {
 
 	pc.ontrack = (e) => {
 		const vid = document.querySelector(`[data-band-id="${peerId}"] .bc-cam`);
-		if (vid) { vid.srcObject = e.streams[0]; vid.classList.add("active"); }
+		if (vid) { vid.srcObject = e.streams[0]; vid.closest(".band-card").classList.add("has-cam"); }
 	};
 
 	pc.onicecandidate = (e) => {

@@ -550,35 +550,68 @@ body {
 }
 .band-row {
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+	grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
 	grid-auto-rows: 1fr;
 	gap: 12px;
 	align-content: stretch;
 }
 
 .band-card {
-	background: var(--surface);
-	border: 2px solid var(--border);
+	position: relative;
+	overflow: hidden;
 	border-radius: 14px;
-	padding: 18px 14px 14px;
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	justify-content: space-between;
-	gap: 8px;
-	transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+	border: 2px solid var(--border);
+	background: #0d0d14;
+	transition: border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .band-card .bc-cam {
-	display: none;
+	position: absolute;
+	inset: 0;
 	width: 100%;
-	aspect-ratio: 4/3;
+	height: 100%;
 	object-fit: cover;
-	border-radius: 8px;
-	background: var(--surface2);
 	transform: scaleX(-1);
-}
-.band-card .bc-cam.active {
 	display: block;
+}
+.band-card .bc-avatar {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 3rem;
+	transition: opacity 0.3s;
+}
+.band-card.has-cam .bc-avatar {
+	opacity: 0;
+	pointer-events: none;
+}
+.band-card .bc-overlay {
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+	padding: 28px 12px 10px;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+.band-card .bc-name {
+	font-size: 0.9rem;
+	font-weight: 700;
+}
+.band-card .bc-meta {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+.band-card .bc-instr {
+	font-family: "Space Mono", monospace;
+	font-size: 0.6rem;
+	color: rgba(255, 255, 255, 0.55);
+	text-transform: uppercase;
+	letter-spacing: 1px;
 }
 .band-card.playing {
 	border-color: var(--green);
@@ -587,27 +620,11 @@ body {
 .band-card.offline {
 	opacity: 0.4;
 }
-.band-card .bc-icon {
-	font-size: 2.4rem;
-	line-height: 1;
-}
-.band-card .bc-name {
-	font-size: 1rem;
-	font-weight: 700;
-	text-align: center;
-}
-.band-card .bc-instr {
-	font-family: "Space Mono", monospace;
-	font-size: 0.65rem;
-	color: var(--dim);
-	text-transform: uppercase;
-	letter-spacing: 1px;
-}
 .vol-bars {
 	display: flex;
 	gap: 3px;
 	align-items: flex-end;
-	height: 24px;
+	height: 22px;
 }
 .vol-bar {
 	width: 4px;
@@ -616,7 +633,7 @@ body {
 	transition: height 0.1s;
 }
 .band-card:not(.playing) .vol-bar {
-	background: var(--dim);
+	background: rgba(255, 255, 255, 0.25);
 	height: 2px !important;
 }
 
