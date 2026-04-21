@@ -369,8 +369,7 @@ function startVoiceInstrumentSelection() {
 
 	navigator.mediaDevices.getUserMedia({ audio: true })
 		.then((stream) => {
-			stream.getTracks().forEach((t) => t.stop());
-			launchRecognition(SpeechRecognition, song, btn, originalLabel);
+			launchRecognition(SpeechRecognition, song, btn, originalLabel, stream);
 		})
 		.catch((err) => {
 			console.error("[voice] mic permission denied:", err);
@@ -380,7 +379,7 @@ function startVoiceInstrumentSelection() {
 		});
 }
 
-function launchRecognition(SpeechRecognition, song, btn, originalLabel) {
+function launchRecognition(SpeechRecognition, song, btn, originalLabel, stream) {
 	const recognition = new SpeechRecognition();
 	recognition.lang = "fr-FR";
 	recognition.interimResults = false;
@@ -424,12 +423,14 @@ function launchRecognition(SpeechRecognition, song, btn, originalLabel) {
 
 	recognition.onerror = (event) => {
 		console.error("[voice] error:", event.error, event.message);
+		stream.getTracks().forEach((t) => t.stop());
 		btn.textContent = originalLabel;
 		btn.disabled = false;
 	};
 
 	recognition.onend = () => {
 		console.log("[voice] recognition ended, btn state:", btn.textContent);
+		stream.getTracks().forEach((t) => t.stop());
 		if (btn.textContent === "🔴") {
 			btn.textContent = originalLabel;
 			btn.disabled = false;
