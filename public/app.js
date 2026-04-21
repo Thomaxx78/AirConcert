@@ -367,6 +367,20 @@ function startVoiceInstrumentSelection() {
 	btn.textContent = "🔴";
 	btn.disabled = true;
 
+	navigator.mediaDevices.getUserMedia({ audio: true })
+		.then((stream) => {
+			stream.getTracks().forEach((t) => t.stop());
+			launchRecognition(SpeechRecognition, song, btn, originalLabel);
+		})
+		.catch((err) => {
+			console.error("[voice] mic permission denied:", err);
+			alert("Accès au microphone refusé.");
+			btn.textContent = originalLabel;
+			btn.disabled = false;
+		});
+}
+
+function launchRecognition(SpeechRecognition, song, btn, originalLabel) {
 	const recognition = new SpeechRecognition();
 	recognition.lang = "fr-FR";
 	recognition.interimResults = false;
