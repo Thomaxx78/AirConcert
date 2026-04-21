@@ -173,6 +173,7 @@ function onSession(msg) {
 	renderSongs();
 	renderPlayers();
 	updateStartBtn();
+	if (isHost && !session.songId) startVoiceSongSelection();
 }
 
 function onPlayerJoined(msg) {
@@ -203,6 +204,7 @@ function onHostChanged(msg) {
 function onSongSelected(msg) {
 	session.songId = msg.songId;
 	session.players.forEach((p) => (p.instrument = null));
+	stopVoiceSongSelection();
 	renderSongs();
 	renderPlayers();
 	updateStartBtn();
@@ -300,6 +302,69 @@ function joinSession() {
 // ============================================================
 //  SONG / INSTRUMENT
 // ============================================================
+const SONG_KEYWORDS = {
+	rock1: ["rock", "anthem"],
+	jazz1: ["jazz", "café", "cafe"],
+	pop1: ["pop", "summer", "été"],
+	electro1: ["electro", "pulse"],
+	techno1: ["techno", "mental", "abyss"],
+};
+
+let voiceSongRecognition = null;
+
+function startVoiceSongSelection() {
+	const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+	if (!SpeechRecognition || voiceSongRecognition) return;
+
+	const indicator = document.getElementById("voiceSongIndicator");
+
+	navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
+		stream.getTracks().forEach((t) => t.stop());
+
+		const rec = new SpeechRecognition();
+		rec.lang = "fr-FR";
+		rec.interimResults = false;
+		rec.maxAlternatives = 5;
+		voiceSongRecognition = rec;
+		if (indicator) indicator.style.display = "";
+
+		rec.onresult = (event) => {
+			const transcripts = Array.from(event.results[0]).map((r) => r.transcript.toLowerCase().trim());
+			for (const transcript of transcripts) {
+				for (const [songId, keywords] of Object.entries(SONG_KEYWORDS)) {
+					if (keywords.some((kw) => transcript.includes(kw))) {
+						send({ type: "select_song", songId });
+						stopVoiceSongSelection();
+						return;
+					}
+				}
+			}
+		};
+
+		rec.onerror = (e) => {
+			if (e.error === "aborted") return;
+			console.warn("[voice-song] error:", e.error);
+		};
+
+		rec.onend = () => {
+			if (voiceSongRecognition && !session.songId) {
+				try { rec.start(); } catch (_) {}
+			}
+		};
+
+		rec.start();
+	}).catch(() => {});
+}
+
+function stopVoiceSongSelection() {
+	if (!voiceSongRecognition) return;
+	const rec = voiceSongRecognition;
+	voiceSongRecognition = null;
+	try { rec.abort(); } catch (_) {}
+	const indicator = document.getElementById("voiceSongIndicator");
+	if (indicator) indicator.style.display = "none";
+}
+
 function renderSongs() {
 	const grid = document.getElementById("songGrid");
 	grid.innerHTML = "";
